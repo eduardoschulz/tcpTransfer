@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-//create struct for server
+/*Cria struct Server */
 type Server struct {
   conn net.Conn
   port string
@@ -23,14 +23,11 @@ type File struct {
 func createServer(Port string, Ip string) *Server { /* Cria um construtor para o Server */
   
   p := &Server{
-
     port:  Port,
     ip: Ip,
-
   }
     
   return p
-  
 }
 
 func createFile(Name string) (*File, error){
@@ -41,23 +38,18 @@ func createFile(Name string) (*File, error){
     log.Println(err)
     return nil, err
   }
+
   defer file.Close()
   
 
 
   fi,_ := file.Stat()
-
   println(fi.Size())
-
   data := make([]byte, fi.Size())
-
   count,_ := file.Read(data)
   println(count)
 
   p := &File{
-
-    
-
   }
 
   return p, nil
@@ -73,15 +65,13 @@ func handleConnection() net.Conn{
     fmt.Println("Error connecting to server")
     os.Exit(1)
   }
-  defer conn.Close()
-
 
   return conn
 
 }
 
 
-//create a function that divides a byte array into 4 parts
+/*
 func divideArray(data []byte) [][]byte {
   
     var dividedData [][]byte
@@ -98,13 +88,45 @@ func divideArray(data []byte) [][]byte {
   
   }
 
+*/
 
 
 
 func main() {
-  f,_  := createFile("test.e")
 
-  fmt.Println(f.name)
+  file,_ := os.ReadFile("fileA.jpg")
+  
+
+
+
+  //f,_  := createFile("fileA.jpg")
+
+
+  conn := handleConnection()
+  conn.Write([]byte("cliente A"))
+  
+
+  conn.Write([]byte("2000000"))
+  n,err := conn.Write(file)
+
+
+  for i := 0; i < 600; i++ {
+    conn.Write(file[i*n/600:(i+1)*n/600])
+  }
+
+
+  if err != nil {
+    log.Println(err)
+    return
+  }
+
+  conn.Write([]byte("END"))
+
+  fmt.Println(n)
+  
+
+  defer conn.Close()
+
 }
 
 

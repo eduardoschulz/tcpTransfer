@@ -65,7 +65,8 @@ func handleClient(conn net.Conn){
       log.Fatal(err) 
     }
     var buf []byte
-    conn.Read(buf[0:]) /* lê a mensagem recebida pelo socket */
+
+    go conn.Read(buf[0:]) /* lê a mensagem recebida pelo socket */
 
     f.Write(buf)/* escreve o stream de dados recebida no arquivo */
     f.Close() /* fecha o arquivo */
