@@ -102,7 +102,7 @@ func main() {
     time.Sleep(100 * time.Millisecond)
     tmpBuf := make([]byte, 1024)
     n, err := conn.Read(tmpBuf)
-    fmt.Printf("Read %s bytes\n", string(tmpBuf[:n]))
+    //fmt.Printf("Read %s bytes\n", string(tmpBuf[:n]))
     if err != nil {
       if err == io.EOF {
         fmt.Println("EOF")
@@ -146,6 +146,7 @@ func main() {
       log.Fatal("Error writing to the file:", err)
     }
   }
+  log.Print("File received!")
 
 
   conn.Close()

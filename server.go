@@ -8,13 +8,14 @@ import (
 	"os"
 	"strings"
 	"time"
-  "sync"
 )
+
+var clientA bool = false
+var clienteB bool = false
+
 
 
 type Server struct {
-  clients map[string]bool
-  mu sync.Mutex
 }
 
 type Client struct {
@@ -59,7 +60,7 @@ func (s *Server) handleConnection(conn net.Conn){
   fmt.Printf("Filename: %s\n", filename)
  
 
-  file,err := os.Create(filename)
+  file,err := os.Create(filename) /*creates the file to be saved*/
   if err != nil {
     log.Fatal(err)
   }
@@ -75,9 +76,8 @@ func (s *Server) handleConnection(conn net.Conn){
       }
     }
 
-    lenv := len(buffer[:n])
+    lenv := len(buffer[:n]) /*gets the length of the buffer*/
 
-    //fmt.Printf("Size of Buffer: %d\n", lenv)
 
     if lenv < 1024 {
         break
@@ -89,13 +89,11 @@ func (s *Server) handleConnection(conn net.Conn){
     }
   }
 
-  s.mu.Lock()
-  defer s.mu.Unlock()
 
   if strings.Contains(string(clientID[:n]),"a"){
-    s.clients["a"] = true
+    clientA = true
   }else if strings.Contains(string(clientID[:n]),"b"){
-    s.clients["b"] = true
+    clienteB = true
   }
 
  
@@ -114,16 +112,19 @@ func (s *Server) handleConnection(conn net.Conn){
     n, err = conn.Read(buff)
     fmt.Printf("%s: %s\n", string(clientID[:n]), string(buff[:n]))
 
-    if strings.Contains(string(clientID[:n]),"a") && s.clients["b"] == true{
+    if strings.Contains(string(clientID[:n]),"a") && clienteB == true{
       time.Sleep(100 * time.Millisecond)
       log.Printf("entered condition client a and b ready")
 
       conn.Write([]byte("yes"))
       sendFile(conn, "client brecv.jpg")
       break
-    }else if strings.Contains(string(clientID[:n]),"b") && s.clients["a"] == true{
+
+    }else if strings.Contains(string(clientID[:n]),"b") && clientA == true{
       time.Sleep(100 * time.Millisecond)
       conn.Write([]byte("yes"))
+
+      log.Printf("entered condition client a and b ready")
      // fmt.Printf("is a ready... yes\n")
       sendFile(conn, "client arecv.jpg")
       break
@@ -131,8 +132,15 @@ func (s *Server) handleConnection(conn net.Conn){
 
     time.Sleep(100 * time.Millisecond)
     conn.Write([]byte("no"))
+    fmt.Printf("%b %b\n", clientA, clienteB)
   }
 
+  time.Sleep(2 * time.Second)
+  if strings.Contains(string(clientID[:n]),"a"){
+    clientA = false
+  }else if strings.Contains(string(clientID[:n]),"b"){
+    clienteB = false
+  }
   conn.Close()
 
 }
@@ -163,7 +171,6 @@ func sendFile(conn net.Conn, filename string) {
 
 func main() {
   server := Server{
-    clients: make(map[string]bool),
   }
 
   server.run()
