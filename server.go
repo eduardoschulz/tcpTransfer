@@ -1,74 +1,114 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net"
-	"os"
+  "log"
+  "net"
+  "fmt"
+  "os"
+  "io"
+  "strings"
 )
+
+type Server struct {
+  clients []Client
+}
+
+type Client struct {
+  id string
+  conn net.Conn
+}
+
+func (s *Server) run() {
+  listener, err := net.Listen("tcp", ":9999")
+  log.Print("Listening on port 9999")
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  for {
+
+    conn, err := listener.Accept()
+    if err != nil {
+      log.Fatal(err)
+    }
+
+    go s.handleConnection(conn)
+  }
+}
+
+
+func (s *Server) handleConnection(conn net.Conn){
+  //defer conn.Close()
+
+  clientID := make([]byte, 1024) /*stores a id for the client*/
+  n,err := conn.Read(clientID)
+
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  log.Printf("Client %s connected...", clientID[:n])
+  filename := string(clientID[:n]) + "recv.jpg" /*defines the name of the file to be saved, hardcoded to jpg TODO*/ 
+ 
+
+  file,err := os.CreateTemp("./temp", filename)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer file.Close()
+
+  buffer := make([]byte, 1024)
+  for {
+    n, err = conn.Read(buffer)
+    
+    if err != nil {
+      if err != io.EOF {
+        log.Println("Error reading from connection: ", err)
+      }
+    }
+
+    lenv := len(buffer[:n])
+
+    fmt.Printf("Size of Buffer: %d\n", lenv)
+    
+
+    if strings.Contains(string(buffer[:n]), "\n") {
+      break
+    }
+
+    _, err = file.Write(buffer[:n])
+    if err != nil {
+      log.Fatal("Error writing to the file:", err)
+    }
+  }
+
+  fmt.Printf("Finished writing file...\n")
+
+  err = file.Close()
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  fmt.Printf("File closed...\n")
+  
+  buffer = make([]byte, 1024)
+  n, err = conn.Read(buffer)  
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  if string(buffer[:n]) == "is b ready?" {
+    conn.Write([]byte("yes"))
+  }
+
+}
+
+
+
 
 
 func main() {
-  handleConnection()
-
+  server := Server{}
+  server.run()
 }
 
-
-func handleConnection() {
-
-  listener, err := net.Listen("tcp", ":9999")
-
-  if err != nil {
-    log.Println(err)
-    return
-  }
-
-  defer listener.Close()
-  fmt.Println("Listening on port 9999")
-
-  for {
-    conn, err := listener.Accept()
-    if err != nil {
-      log.Println(err)
-      continue
-    }
-    
-    go handleClient(conn)
-
-
-
-}
-}
-
-func handleClient(conn net.Conn){
-  //defer conn.Close()
-  fmt.Println("Client connected from " + conn.RemoteAddr().String())
- // for {
-   /* 
-    var buf [2701662]byte cria buffer que vai armazenar a mensagem recebida pelo socket 
-    n, err := conn.Read(buf[0:])
-
-    if err != nil {    verifica se ocorreu algum erro na leitura da mensagem 
-      log.Println(err) 
-      return
-    }
-    s := string(buf[0:n])  converte o buffer em string 
-    fmt.Println("Received:", s)
-    _, err2 := conn.Write([]byte("Received: "+ conn.LocalAddr().String()))
-    if err2 != nil {
-      log.Println(err2)
-      return
-    }
-    */
-    f, err := os.Create("received.jpg") /* cria um arquivo para armazenar a mensagem recebida */
-    if err != nil { /* verifica se ocorreu algum erro na criação do arquivo */
-      log.Fatal(err) 
-    }
-    var buf []byte
-    conn.Read(buf[0:]) /* lê a mensagem recebida pelo socket */
-
-    f.Write(buf)/* escreve o stream de dados recebida no arquivo */
-    f.Close() /* fecha o arquivo */
- // }
-
-}

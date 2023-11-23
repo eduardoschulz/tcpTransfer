@@ -1,60 +1,133 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"time"
 )
 
+//os args
 
 func main() {
-  conn, err := net.Dial("tcp", "localhost:9999")
-  
+
+  args := os.Args[1]
+
+  if len(args) < 1 {
+    log.Fatal("Usage: go run client.go <client name>")
+  }
+
+  conn, err := net.Dial("tcp", "localhost:9999") /*connects socket to server */
+  defer conn.Close() /*closes connection when function returns*/
+
   if err != nil {
     log.Println(err)
     return
   }
 
-  //for {
+
+  file, err := os.Open("test.jpg") /*file to be sent*/
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  fi,_ := file.Stat()
+  defer file.Close()
+
+  size := fi.Size()
+  fmt.Printf("File size: %d\n", size)
+
+
+  data := make([]byte, size) 
+
+  _,err = file.Read(data)
+
+
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  var s string /* parses the client name from the command line*/
+  if "a" == args {
+    s = "client a"
+    fmt.Println("Client A")
+  }else {
+    s = "client b"
+    fmt.Println("Client B")
+  }
+
+  _,err = conn.Write([]byte(s)) /*sends the client name to the server*/
+
+  time.Sleep(100 * time.Millisecond)
+
+  fmt.Println("Sending file...")
+  _,err = conn.Write(data[:]) /*sends the file to the server*/
+  fmt.Println("File sent!")
+  if err != nil {
+    log.Fatal(err)
+  }
+  conn.Write([]byte("\n")) /*sends a newline character to the server*/
+
+
+  otherfile := make([]byte, 1024)
+
+  var fileC *os.File
+
+  if s == "client a" {
+    fileC, err = os.Create("recvB.jpg")
+    conn.Write([]byte("is b ready?"))
+    if err != nil {
+      log.Fatal(err)
+    }else{
+    fileC, err = os.Create("recvA.jpg")
+    conn.Write([]byte("is a ready?"))
+    if err != nil {
+      log.Fatal(err)
+    }
+  }
+
+ buf := make([]byte, 1024)
+
+ _,err := conn.Read(buf[:])
+
+ if err != nil {
+  log.Fatal(err)
+ }
+
+ fmt.Println(string(buf))
+
   
-       // pid := os.Getppid()
-       // pidStr := strconv.Itoa(pid)
-  
- //       conn.Write([]byte(pidStr))
-        //write a sleep for 10 seconds
 
-        file, err := os.Open("test.jpg")
-        if err != nil {
-          log.Fatal(err)
-        }
-
-        fi,_ := file.Stat()
-        defer file.Close()
-
-        // get the file size
-        size := fi.Size()
-        println("File size:", size)
-
-
-        data := make([]byte, size) 
-        
-
-        count, err := file.Read(data)
-        
-
-        if err != nil {
-          log.Fatal(err)
-        }
-        //divide the file into 600 parts
-        for i := 0; i < 600; i++ {
-          conn.Write(data[i*count/600:(i+1)*count/600])
-          time.Sleep(100 * time.Millisecond)
-        }
+  defer fileC.Close()
 
 
 
 
-        //conn.Write(data[:count])
+
+  for {
+    _, err = conn.Read(otherfile[:])
+    if err != nil {
+      if err != io.EOF {
+        log.Println("Error reading from connection: ", err)
+      }
+      break
+    }
+
+    _, err = file.Write(otherfile[:])
+    if err != nil {
+      log.Fatal("Error writing to the file:", err)
+    }
+
+
+  }
+
+
+
+
+
+
+}
 }
 
