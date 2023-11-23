@@ -1,16 +1,20 @@
 package main
 
 import (
-  "log"
-  "net"
-  "fmt"
-  "os"
-  "io"
-  "strings"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"os"
+	"strings"
+	"time"
+  "sync"
 )
 
+
 type Server struct {
-  clients []Client
+  clients map[string]bool
+  mu sync.Mutex
 }
 
 type Client struct {
@@ -19,6 +23,9 @@ type Client struct {
 }
 
 func (s *Server) run() {
+  //clientA = false
+  //clientB = false
+
   listener, err := net.Listen("tcp", ":9999")
   log.Print("Listening on port 9999")
   if err != nil {
@@ -49,9 +56,10 @@ func (s *Server) handleConnection(conn net.Conn){
 
   log.Printf("Client %s connected...", clientID[:n])
   filename := string(clientID[:n]) + "recv.jpg" /*defines the name of the file to be saved, hardcoded to jpg TODO*/ 
+  fmt.Printf("Filename: %s\n", filename)
  
 
-  file,err := os.CreateTemp("./temp", filename)
+  file,err := os.Create(filename)
   if err != nil {
     log.Fatal(err)
   }
@@ -69,11 +77,10 @@ func (s *Server) handleConnection(conn net.Conn){
 
     lenv := len(buffer[:n])
 
-    fmt.Printf("Size of Buffer: %d\n", lenv)
-    
+    //fmt.Printf("Size of Buffer: %d\n", lenv)
 
-    if strings.Contains(string(buffer[:n]), "\n") {
-      break
+    if lenv < 1024 {
+        break
     }
 
     _, err = file.Write(buffer[:n])
@@ -82,33 +89,83 @@ func (s *Server) handleConnection(conn net.Conn){
     }
   }
 
-  fmt.Printf("Finished writing file...\n")
+  s.mu.Lock()
+  defer s.mu.Unlock()
 
+  if strings.Contains(string(clientID[:n]),"a"){
+    s.clients["a"] = true
+  }else if strings.Contains(string(clientID[:n]),"b"){
+    s.clients["b"] = true
+  }
+
+ 
+
+  fmt.Printf("Finished writing file...\n")
+  fmt.Printf("File saved...\n")
   err = file.Close()
   if err != nil {
     log.Fatal(err)
   }
 
-  fmt.Printf("File closed...\n")
-  
-  buffer = make([]byte, 1024)
-  n, err = conn.Read(buffer)  
+  time.Sleep(100 * time.Millisecond)
+  for { 
+    //fmt.Printf("Waiting for other client...\n")
+    buff := make([]byte, 1024) 
+    n, err = conn.Read(buff)
+    fmt.Printf("%s: %s\n", string(clientID[:n]), string(buff[:n]))
+
+    if strings.Contains(string(clientID[:n]),"a") && s.clients["b"] == true{
+      time.Sleep(100 * time.Millisecond)
+      log.Printf("entered condition client a and b ready")
+
+      conn.Write([]byte("yes"))
+      sendFile(conn, "client brecv.jpg")
+      break
+    }else if strings.Contains(string(clientID[:n]),"b") && s.clients["a"] == true{
+      time.Sleep(100 * time.Millisecond)
+      conn.Write([]byte("yes"))
+     // fmt.Printf("is a ready... yes\n")
+      sendFile(conn, "client arecv.jpg")
+      break
+    }
+
+    time.Sleep(100 * time.Millisecond)
+    conn.Write([]byte("no"))
+  }
+
+  conn.Close()
+
+}
+
+func sendFile(conn net.Conn, filename string) {
+
+  file, err := os.Open(filename)
   if err != nil {
     log.Fatal(err)
   }
 
-  if string(buffer[:n]) == "is b ready?" {
-    conn.Write([]byte("yes"))
+  fileInfo, err := file.Stat()
+  if err != nil {
+    log.Fatal(err)
   }
+
+  buffer := make([]byte, fileInfo.Size())
+  _, err = file.Read(buffer)
+  conn.Write(buffer)
+  time.Sleep(100 * time.Millisecond)
+  buffer = make([]byte, 1)
+  conn.Write(buffer)
+
+  file.Close()
 
 }
 
 
-
-
-
 func main() {
-  server := Server{}
+  server := Server{
+    clients: make(map[string]bool),
+  }
+
   server.run()
 }
 

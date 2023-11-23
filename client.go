@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"time"
+  "strings"
 )
 
 //os args
@@ -20,15 +21,27 @@ func main() {
   }
 
   conn, err := net.Dial("tcp", "localhost:9999") /*connects socket to server */
-  defer conn.Close() /*closes connection when function returns*/
 
   if err != nil {
     log.Println(err)
     return
   }
 
+  var file *os.File
+  var s string /* parses the client name from the command line*/
+  if "a" == args {
+    s = "client a"
+    fmt.Println("Client A")
+    file, err = os.Open("sendA.png") 
+  }else {
+    s = "client b"
+    fmt.Println("Client B")
+    file, err = os.Open("sendB.png") 
+  }
 
-  file, err := os.Open("test.jpg") /*file to be sent*/
+
+
+  /*file to be sent*/
   if err != nil {
     log.Fatal(err)
   }
@@ -49,16 +62,7 @@ func main() {
     log.Fatal(err)
   }
 
-  var s string /* parses the client name from the command line*/
-  if "a" == args {
-    s = "client a"
-    fmt.Println("Client A")
-  }else {
-    s = "client b"
-    fmt.Println("Client B")
-  }
-
-  _,err = conn.Write([]byte(s)) /*sends the client name to the server*/
+    _,err = conn.Write([]byte(s)) /*sends the client name to the server*/
 
   time.Sleep(100 * time.Millisecond)
 
@@ -68,66 +72,83 @@ func main() {
   if err != nil {
     log.Fatal(err)
   }
+  time.Sleep(100 * time.Millisecond)
+
   conn.Write([]byte("\n")) /*sends a newline character to the server*/
-
-
-  otherfile := make([]byte, 1024)
+  conn.Write(make([]byte, 0)) /*sends a empty byte array to the server*/
 
   var fileC *os.File
 
-  if s == "client a" {
-    fileC, err = os.Create("recvB.jpg")
-    conn.Write([]byte("is b ready?"))
-    if err != nil {
-      log.Fatal(err)
-    }else{
-    fileC, err = os.Create("recvA.jpg")
-    conn.Write([]byte("is a ready?"))
-    if err != nil {
-      log.Fatal(err)
+  fmt.Println("Waiting for response...")
+  clientReady := false
+  for !clientReady {
+
+    if s == "client a" {
+      fileC, err = os.Create("recvB.png")
+      conn.Write([]byte("is b ready?"))
+      fmt.Printf("Is B ready?\n")
+      if err != nil {
+        log.Fatal(err)
+      }
+    }else if s == "client b"{
+      fileC, err = os.Create("recvA.png")
+      conn.Write([]byte("is a ready?"))
+      fmt.Printf("Is A ready?\n")
+      if err != nil {
+        log.Fatal(err)
+      }
     }
+    
+    time.Sleep(100 * time.Millisecond)
+    tmpBuf := make([]byte, 1024)
+    n, err := conn.Read(tmpBuf)
+    fmt.Printf("Read %s bytes\n", string(tmpBuf[:n]))
+    if err != nil {
+      if err == io.EOF {
+        fmt.Println("EOF")
+        return
+      }
+    }
+    if strings.Contains(string(tmpBuf[:n]), "yes") {
+      clientReady = true
+      break // test
+    }else if strings.Contains(string(tmpBuf[:n]), "no") {
+      time.Sleep(2 * time.Second)
+    }
+
+
+    time.Sleep(200 * time.Millisecond)
+    fmt.Printf("Waiting for client...\n")
   }
-
- buf := make([]byte, 1024)
-
- _,err := conn.Read(buf[:])
-
- if err != nil {
-  log.Fatal(err)
- }
-
- fmt.Println(string(buf))
-
   
+  finished := false
 
-  defer fileC.Close()
-
-
-
-
-
-  for {
-    _, err = conn.Read(otherfile[:])
+  tmpBuf := make([]byte, 1024)
+  for !finished {
+    n, err := conn.Read(tmpBuf)
+    
     if err != nil {
       if err != io.EOF {
         log.Println("Error reading from connection: ", err)
       }
-      break
     }
 
-    _, err = file.Write(otherfile[:])
+    lenv := len(tmpBuf[:n])
+
+    //fmt.Printf("Size of Buffer: %d\n", lenv)
+
+    if lenv < 1024 {
+      finished = true
+    }
+
+    _, err = fileC.Write(tmpBuf[:n])
     if err != nil {
       log.Fatal("Error writing to the file:", err)
     }
-
-
   }
 
 
+  conn.Close()
 
-
-
-
-}
 }
 
